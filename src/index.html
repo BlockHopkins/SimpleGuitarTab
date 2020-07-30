@@ -1,0 +1,213 @@
+<html>
+    <head>
+        <style>
+            .canvas-base-pannel{
+                width: 1000px;
+                left: 50%;
+                top: 20px;
+                margin-left: -500px;
+                position: relative;
+            }
+            canvas{
+                /*
+                width: 1000;
+                height: 3000;
+                */
+                border: 1px solid black;
+                position: absolute;
+            }
+        </style>
+        <script>
+            /**
+             * 主方法：绘制背景
+             */
+            function drawCanvas(){
+                var baseCanvas = document.getElementById("baseCanvas");
+                var ctx = baseCanvas.getContext("2d");
+
+                //全局配置项
+                var globalConfig = {
+                    //画布总宽度
+                    canvasWidth: 1000,
+                    //页面四周空白大小
+                    padding: 50,
+                };
+
+                //标题参数
+                var titleConfig = {
+                    //标题定义
+                    contents: ["标题","副标题"],
+                    //标题样式，居中对齐
+                    titleAlign: "center",
+                    //标题字体
+                    titleFont: "40px Arial",
+                    //副标题字体
+                    subTitleFont: "30px Arial",
+                    //标题所在高度
+                    titleSize: 40,
+                    //副标题所在高度
+                    subTitleSize: 30,
+                    //标题行距
+                    lineSpace: 10
+                };
+
+                //左侧备注区域参数(节拍，Capo等内容)
+                var leftNoteConfig = {
+                    contents: ["Capo=3",""],
+                    font: "20px Arial",
+                    textSize: 20,
+                    lineSapce: 5,
+                    align: "left"
+                };
+
+                //右侧备注区域参数（编配，作者等内容）
+                var rightNoteConfig = {
+                    contents: ["作曲：John","演唱：Cena"],
+                    font: "20px Arial",
+                    lineSpace: 5,
+                    textSize: 20,
+                    align: "left"
+                };
+
+                //正文曲谱线条参数
+                var tabConfig = {
+                    //线条间隔
+                    lineSpace: 10,
+                    //段落间隔
+                    paraSpace: 30
+                }
+
+                //当前坐标参数
+                var currentXY = {
+                    //当前绘制高度
+                    currentY: globalConfig.padding,
+                    //当前绘制X坐标-左侧起点
+                    currentXLeft: globalConfig.padding,
+                    //当前绘制Y坐标-右侧止点
+                    currentXRight: globalConfig.canvasWidth - globalConfig.padding,
+                };
+                
+                //绘制标题文本
+                currentXY.currentY += titleConfig.titleSize;
+                ctx.textAlign = titleConfig.titleAlign;
+                ctx.font = titleConfig.titleFont;
+                titleConfig.contents.forEach(function(content, index){
+                    if(index==0){
+                        //绘制主标题
+                        ctx.fillText(content, globalConfig.canvasWidth/2, currentXY.currentY);
+                        ctx.font = titleConfig.subTitleFont;
+                    }else{
+                        //绘制副标题
+                        ctx.fillText(content, globalConfig.canvasWidth/2, currentXY.currentY);
+                    }
+                    currentXY.currentY += titleConfig.lineSpace + titleConfig.subTitleSize;
+                });
+
+                //暂存左右侧备注区域开始高度
+                var noteHeight = currentXY.currentY;
+                //绘制开头左侧备注区域
+                ctx.textAlign = leftNoteConfig.align;
+                ctx.font = leftNoteConfig.font;
+                for(var index in leftNoteConfig.contents){
+                    var content = leftNoteConfig.contents[index];
+                    ctx.fillText(content, currentXY.currentXLeft, currentXY.currentY);
+                    currentXY.currentY += leftNoteConfig.lineSpace + leftNoteConfig.textSize;
+                }
+                //暂存左侧备注区域结束高度，和右侧结束高度对比，取较大值作为正文开始高度
+                var leftNoteEndHeight = currentXY.currentY;
+
+                //绘制开头右侧备注区域
+                //重置起始高度，和左侧对齐
+                currentXY.currentY = noteHeight;
+                ctx.textAlign = rightNoteConfig.align;
+                ctx.font = rightNoteConfig.font;
+                //计算内容最大长度
+                var maxLength = 0;
+                for(var index in rightNoteConfig.contents){
+                    var content = rightNoteConfig.contents[index];
+                    var length = ctx.measureText(content).width;
+                    if(maxLength < length){
+                        maxLength = length;
+                    }
+                }
+                //计算右侧区域起始X坐标
+                var rightNoteX = currentXY.currentXRight - maxLength;
+                for(var index in rightNoteConfig.contents){
+                    var content = rightNoteConfig.contents[index];
+                    ctx.fillText(content, rightNoteX, currentXY.currentY);
+                    currentXY.currentY += rightNoteConfig.lineSpace + rightNoteConfig.textSize;
+                }
+                //取左右两侧最大值，为下文起始高度
+                if(leftNoteEndHeight > currentXY.currentY){
+                    currentXY.currentY = leftNoteEndHeight;
+                }
+                
+                //绘制正文
+                for(var j=0; j<5; j++){
+                    //绘制一行：
+                    for(var i=0; i<6; i++){
+                        ctx.beginPath();
+                        ctx.moveTo(currentXY.currentXLeft, currentXY.currentY);
+                        ctx.lineTo(currentXY.currentXRight, currentXY.currentY);
+                        ctx.stroke();
+                        currentXY.currentY += tabConfig.lineSpace;
+                    }
+                    currentXY.currentY += tabConfig.paraSpace;
+                }
+            }
+            /**
+             * 读取曲谱数据
+             */
+            function readTabData(){
+                //节点类型
+                var TYPE_ENUM = {
+                    //普通拨弦
+                    PLUCK: "00",
+                    //扫弦
+                    SWEEP: "01",
+
+                }
+                //特殊按弦标记，用负数表示，非负数用来表示按弦品位 
+                var SIGN = {
+                    //不显示
+                    NONE: -1,
+                    //拍弦
+                    SLAP: -2
+                }
+                //与前驱节点关系
+                var RELATION = {
+                    //无
+                    NONE = "00",
+                    //滑音（s）
+                    SLIDE = "01",
+                    //击弦（h）
+                    HAMMER = "02",
+                    //勾线（p）
+                    PULL = "03"
+                }
+                //节点数据结构定义
+                var node = {
+                    //节点类型
+                    type: TYPE_ENUM.PLUCK,
+                    //1-6弦按弦品位标识(示例C和弦)
+                    flet: [SIGN.NONE, 1, SIGN.NONE, 2, 3, SIGN.NONE],
+                    //与前驱节点的连接关系，如滑音，击勾弦等，可为空
+                    preRel: [],     
+                    //节拍, 取值 1, 0.5, 0.25, 0.125 ...
+                    beat: 1,
+
+                }
+
+
+            }
+        </script>
+    </head>
+    <body onload="drawCanvas()">
+        <div class="canvas-base-pannel">
+            <canvas id="baseCanvas" width="1000" height="3000"></canvas>
+            <canvas id="secondCanvas" width="1000" height="3000"></canvas>
+        </div>
+    </body>
+    
+
+</html>
