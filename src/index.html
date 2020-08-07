@@ -17,250 +17,327 @@
                 position: absolute;
             }
         </style>
-        <script>
-            window.tabWidget = {
-                //全局配置项
-                globalConfig: {
-                    //画布总宽度
-                    canvasWidth: 1000,
-                    //页面四周空白大小
-                    padding: 50,
-                    //节点间隔
-                    nodeSpace: 15
-                },
-                //标题参数
-                titleConfig: {
-                    //标题定义
-                    contents: ["标题","副标题"],
-                    //标题样式，居中对齐
-                    titleAlign: "center",
-                    //标题字体
-                    titleFont: "40px Arial",
-                    //副标题字体
-                    subTitleFont: "30px Arial",
-                    //标题所在高度
-                    titleSize: 40,
-                    //副标题所在高度
-                    subTitleSize: 30,
-                    //标题行距
-                    lineSpace: 10
-                },
-                //左侧备注区域参数(节拍，Capo等内容)
-                leftNoteConfig: {
-                    contents: ["Capo=3",""],
-                    font: "20px Arial",
-                    textSize: 20,
-                    lineSapce: 5,
-                    align: "left"
-                },
-                //右侧备注区域参数（编配，作者等内容）
-                rightNoteConfig: {
-                    contents: ["作曲：John","演唱：Cena"],
-                    font: "20px Arial",
-                    lineSpace: 5,
-                    textSize: 20,
-                    align: "left"
-                },
-                //正文曲谱线条参数
-                tabConfig: {
-                    //线条间隔
-                    lineSpace: 10,
-                    //段落间隔
-                    paraSpace: 30
-                },
-                //当前坐标参数
-                currentXY: {
-                    //当前绘制高度
-                    currentY: globalConfig.padding,
-                    //当前绘制X坐标-左侧起点
-                    currentXLeft: globalConfig.padding,
-                    //当前绘制Y坐标-右侧止点
-                    currentXRight: globalConfig.canvasWidth - globalConfig.padding,
-                },
-
-                //常量---------
-                //节点类型
-                TYPE_ENUM: {
-                    //普通拨弦
-                    PLUCK: "00",
-                    //扫弦
-                    SWEEP: "01",
-
-                },
-                //特殊按弦标记，用负数表示，非负数用来表示按弦品位 
-                SIGN:{
-                    //不显示
-                    NONE: -1,
-                    //拍弦
-                    SLAP: -2
-                },
-                //与前驱节点关系
-                RELATION: {
-                    //无
-                    NONE = "00",
-                    //滑音（s）
-                    SLIDE = "01",
-                    //击弦（h）
-                    HAMMER = "02",
-                    //勾线（p）
-                    PULL = "03"
-                },
-
-                //数据结构定义-------------
-                //节点数据结构定义
-                node: {
-                    //节拍, 取值 1, 0.5, 0.25, 0.125 ...
-                    beat: 1,
-                    //节点类型
-                    type: TYPE_ENUM.PLUCK,
-                    //1-6弦按弦品位标识(示例C和弦)
-                    flet: [SIGN.NONE, 1, SIGN.NONE, 2, 3, SIGN.NONE],
-                    //与前驱节点的连接关系，如滑音，击勾弦等，可为空
-                    preRel: [],
-                    //扫弦的方向及扫哪些弦，如从6弦扫到2弦记为[6,2]，从1弦扫到6弦记为[1,6]
-                    sweep: [],
-                    //和弦记号
-                    chord: "C",
-                },
-                //曲谱对象
-                tabObj: {
-                    //标题，第一个元素为主标题，后续的为副标题
-                    title: [],
-                    //左侧的演奏备注
-                    fretNote: [],
-                    //右侧的作者备注
-                    authorNote: [],
-                    //节点集合
-                    nodes: []
-                },
-                //背景画布
-                baseCanvas: null,
-                basebasectx: null,
-                //曲谱画布
-                tabCanvas: null,
-                tabbasectx: null,
-                initConfig: function(){
-                    var self = this;
-                    self.baseCanvas = document.getElementById("baseCanvas");
-                    self.basectx = baseCanvas.getContext("2d");
-                },
-                //初始化曲谱
-                initInfo: function(titles, fretNotes, authorNotes ){
-                    var self = this;
-                    //标题
-                    self.titleConfig.contents = titles;
-                    //曲谱演奏备注
-                    self.leftNoteConfig.contents = fretNotes;
-                    //作者备注
-                    self.rightNoteConfig.contents = authorNotes;
-                    //初始化坐标
-                    //当前绘制高度
-                    self.currentXY.currentY= self.globalConfig.padding;
-                    //当前绘制X坐标-左侧起点
-                    self.currentXY.currentXLeft = self.globalConfig.padding;
-                    //当前绘制Y坐标-右侧止点
-                    self.currentXY.currentXRight = self.globalConfig.canvasWidth - globalConfig.padding;
-                },
-                //绘制头部
-                drawTabHead: function(){
-                    var self = this;
-                    //绘制标题文本
-                    self.currentXY.currentY += self.titleConfig.titleSize;
-                    self.basectx.textAlign = self.titleConfig.titleAlign;
-                    self.basectx.font = self.titleConfig.titleFont;
-                    self.titleConfig.contents.forEach((content, index)=>{
-                        if(index==0){
-                            //绘制主标题
-                            self.basectx.fillText(content, self.globalConfig.canvasWidth/2, self.currentXY.currentY);
-                            self.basectx.font = self.titleConfig.subTitleFont;
-                        }else{
-                            //绘制副标题
-                            self.basectx.fillText(content, self.globalConfig.canvasWidth/2, self.currentXY.currentY);
-                        }
-                        self.currentXY.currentY += self.titleConfig.lineSpace + self.titleConfig.subTitleSize;
-                    });
-
-                    //暂存左右侧备注区域开始高度
-                    var noteHeight = self.currentXY.currentY;
-                    //绘制开头左侧备注区域
-                    self.basectx.textAlign = self.leftNoteConfig.align;
-                    self.basectx.font = self.leftNoteConfig.font;
-                    for(var content of self.leftNoteConfig.contents){
-                        self.basectx.fillText(content, self.currentXY.currentXLeft, self.currentXY.currentY);
-                        self.currentXY.currentY += self.leftNoteConfig.lineSpace + self.leftNoteConfig.textSize;
-                    }
-                    //暂存左侧备注区域结束高度，和右侧结束高度对比，取较大值作为正文开始高度
-                    var leftNoteEndHeight = self.currentXY.currentY;
-
-                    //绘制开头右侧备注区域
-                    //重置起始高度，和左侧对齐
-                    self.currentXY.currentY = noteHeight;
-                    self.basectx.textAlign = self.rightNoteConfig.align;
-                    self.basectx.font = self.rightNoteConfig.font;
-                    //计算内容最大长度
-                    var maxLength = 0;
-                    for(var content of self.rightNoteConfig.contents){
-                        var length = self.basectx.measureText(content).width;
-                        if(maxLength < length){
-                            maxLength = length;
-                        }
-                    }
-                    //计算右侧区域起始X坐标
-                    var rightNoteX = self.currentXY.currentXRight - maxLength;
-                    for(var content of self.rightNoteConfig.contents){
-                        self.basectx.fillText(content, rightNoteX, self.currentXY.currentY);
-                        self.currentXY.currentY += self.rightNoteConfig.lineSpace + self.rightNoteConfig.textSize;
-                    }
-                    //取左右两侧最大值，为下文起始高度
-                    if(leftNoteEndHeight > self.currentXY.currentY){
-                        self.currentXY.currentY = leftNoteEndHeight;
-                    }
-                }
-            }
-            /**
-             * 主方法：绘制背景
-             */
-            function drawCanvas(){
-                var self = this;
-                //绘制正文
-                //绘制一行：
-                for(var i=0; i<6; i++){
-                    self.basectx.beginPath();
-                    self.basectx.moveTo(self.currentXY.currentXLeft, self.currentXY.currentY);
-                    self.basectx.lineTo(self.currentXY.currentXRight, self.currentXY.currentY);
-                    self.basectx.stroke();
-                    self.currentXY.currentY += self.tabConfig.lineSpace;
-                }
-                self.currentXY.currentY += self.tabConfig.paraSpace;
-            }
-            /**
-             * 读取曲谱数据
-             */
-            function readTabData(){
-                
-
-                var tabStr = "";
-                if(!tabStr){
-                    return;
-                }
-                var tabObj = eval(tabStr);
-
-                var tabCanvas = document.getElementById("tabCanvas");
-                var basectx = tabCanvas.getContext("2d");
-                //开始绘制节点
-                for(var node of tabObj.nodes){
-                    
-                }
-
-            }
-        </script>
+        
     </head>
-    <body onload="drawCanvas()">
+    <body onload="window.tabWidget.initConfig()">
         <div class="canvas-base-pannel">
             <canvas id="baseCanvas" width="1000" height="3000"></canvas>
             <canvas id="tabCanvas" width="1000" height="3000"></canvas>
         </div>
     </body>
+    <script>
+        window.tabWidget = {
+            //全局配置项
+            globalConfig: {
+                //画布总宽度
+                canvasWidth: 1000,
+                //页面四周空白大小
+                padding: 50,
+                //节点间隔
+                nodeSpace: 15
+            },
+            //标题参数
+            titleConfig: {
+                //标题定义
+                contents: ["标题","副标题"],
+                //标题样式，居中对齐
+                titleAlign: "center",
+                //标题字体
+                titleFont: "40px Arial",
+                //副标题字体
+                subTitleFont: "30px Arial",
+                //标题所在高度
+                titleSize: 40,
+                //副标题所在高度
+                subTitleSize: 30,
+                //标题行距
+                lineSpace: 10
+            },
+            //左侧备注区域参数(节拍，Capo等内容)
+            leftNoteConfig: {
+                contents: ["Capo=3",""],
+                font: "20px Arial",
+                textSize: 20,
+                lineSapce: 5,
+                align: "left"
+            },
+            //右侧备注区域参数（编配，作者等内容）
+            rightNoteConfig: {
+                contents: ["作曲：John","演唱：Cena"],
+                font: "20px Arial",
+                lineSpace: 5,
+                textSize: 20,
+                align: "left"
+            },
+            //正文曲谱线条参数
+            tabConfig: {
+                //线条间隔
+                lineSpace: 10,
+                //段落间隔
+                paraSpace: 30,
+                //节点之间距离
+                nodeGap: 20,
+                //节点标记文本大小
+                nodeTextSize: 5,
+                //字体
+                font: "8px Arial",
+                //中间
+                align: "center"
+            },
+            
+            //当前坐标参数
+            currentXY: {
+                //当前绘制Y坐标
+                currentY: 0,
+                //当前绘制X坐标
+                currentX: 0,
+                //当前绘制X坐标-左侧起点
+                currentXLeft: 0,
+                //当前绘制Y坐标-右侧止点
+                currentXRight: 0,
+            },
+
+            //常量---------
+            //节点类型
+            TYPE_ENUM: {
+                //换行符
+                LINEBREAK: "00",
+                //小段分隔竖线
+                BREAK: "01",
+                //普通拨弦
+                PLUCK: "02",
+                //扫弦
+                SWEEP: "03",
+
+            },
+            //特殊按弦标记，用负数表示，非负数用来表示按弦品位 
+            SIGN:{
+                //不显示
+                NONE: -1,
+                //拍弦
+                SLAP: -2
+            },
+            //与前驱节点关系
+            RELATION: {
+                //无
+                NONE: "00",
+                //滑音（s）
+                SLIDE: "01",
+                //击弦（h）
+                HAMMER: "02",
+                //勾线（p）
+                PULL: "03"
+            },
+
+            //数据结构定义-------------
+            //节点数据结构定义
+            node: {
+                //节拍, 取值 1, 0.5, 0.25, 0.125 ...
+                beat: 1,
+                //节点类型
+                type: "02",
+                //1-6弦按弦品位标识(示例C和弦)
+                flet: [-1, 1, -1, 2, 3, -1],
+                //与前驱节点的连接关系，如滑音，击勾弦等，可为空
+                preRel: [],
+                //扫弦的方向及扫哪些弦，如从6弦扫到2弦记为[6,2]，从1弦扫到6弦记为[1,6]
+                sweep: [],
+                //和弦记号
+                chord: "C",
+            },
+            //曲谱对象
+            tabObj: {
+                //标题，第一个元素为主标题，后续的为副标题
+                title: [],
+                //左侧的演奏备注
+                fretNote: [],
+                //右侧的作者备注
+                authorNote: [],
+                //节点集合
+                nodes: []
+            },
+            //背景画布
+            baseCanvas: null,
+            basectx: null,
+            //曲谱画布
+            tabCanvas: null,
+            tabctx: null,
+            initConfig: function(){
+                var self = this;
+                self.baseCanvas = document.getElementById("baseCanvas");
+                self.basectx = baseCanvas.getContext("2d");
+                self.tabCanvas = document.getElementById("tabCanvas");
+                self.tabctx = tabCanvas.getContext("2d");
+                //加载测试数据
+                self.loadTabData(self.testTabStr);
+            },
+            //初始化曲谱
+            initInfo: function(titles, fretNotes, authorNotes ){
+                var self = this;
+                //标题
+                self.titleConfig.contents = titles;
+                //曲谱演奏备注
+                self.leftNoteConfig.contents = fretNotes;
+                //作者备注
+                self.rightNoteConfig.contents = authorNotes;
+                //初始化坐标
+                //当前绘制高度
+                self.currentXY.currentY= self.globalConfig.padding;
+                //当前绘制X坐标
+                self.currentXY.currentX = self.globalConfig.padding;
+                //当前绘制X坐标-左侧起点
+                self.currentXY.currentXLeft = self.globalConfig.padding;
+                //当前绘制Y坐标-右侧止点
+                self.currentXY.currentXRight = self.globalConfig.canvasWidth - self.globalConfig.padding;
+            },
+            //绘制头部
+            drawTabHead: function(){
+                var self = this;
+                //绘制标题文本
+                self.currentXY.currentY += self.titleConfig.titleSize;
+                self.basectx.textAlign = self.titleConfig.titleAlign;
+                self.basectx.font = self.titleConfig.titleFont;
+                self.titleConfig.contents.forEach((content, index)=>{
+                    if(index==0){
+                        //绘制主标题
+                        self.basectx.fillText(content, self.globalConfig.canvasWidth/2, self.currentXY.currentY);
+                        self.basectx.font = self.titleConfig.subTitleFont;
+                    }else{
+                        //绘制副标题
+                        self.basectx.fillText(content, self.globalConfig.canvasWidth/2, self.currentXY.currentY);
+                    }
+                    self.currentXY.currentY += self.titleConfig.lineSpace + self.titleConfig.subTitleSize;
+                });
+
+                //暂存左右侧备注区域开始高度
+                var noteHeight = self.currentXY.currentY;
+                //绘制开头左侧备注区域
+                self.basectx.textAlign = self.leftNoteConfig.align;
+                self.basectx.font = self.leftNoteConfig.font;
+                for(var content of self.leftNoteConfig.contents){
+                    self.basectx.fillText(content, self.currentXY.currentXLeft, self.currentXY.currentY);
+                    self.currentXY.currentY += self.leftNoteConfig.lineSpace + self.leftNoteConfig.textSize;
+                }
+                //暂存左侧备注区域结束高度，和右侧结束高度对比，取较大值作为正文开始高度
+                var leftNoteEndHeight = self.currentXY.currentY;
+
+                //绘制开头右侧备注区域
+                //重置起始高度，和左侧对齐
+                self.currentXY.currentY = noteHeight;
+                self.basectx.textAlign = self.rightNoteConfig.align;
+                self.basectx.font = self.rightNoteConfig.font;
+                //计算内容最大长度
+                var maxLength = 0;
+                for(var content of self.rightNoteConfig.contents){
+                    var length = self.basectx.measureText(content).width;
+                    if(maxLength < length){
+                        maxLength = length;
+                    }
+                }
+                //计算右侧区域起始X坐标
+                var rightNoteX = self.currentXY.currentXRight - maxLength;
+                for(var content of self.rightNoteConfig.contents){
+                    self.basectx.fillText(content, rightNoteX, self.currentXY.currentY);
+                    self.currentXY.currentY += self.rightNoteConfig.lineSpace + self.rightNoteConfig.textSize;
+                }
+                //取左右两侧最大值，为下文起始高度
+                if(leftNoteEndHeight > self.currentXY.currentY){
+                    self.currentXY.currentY = leftNoteEndHeight;
+                }
+            },
+            
+            /**
+            * 绘制一行背景，返回开始高度
+            */
+            drawCanvas: function(){
+                var self = this;
+                var beginY = self.currentXY.currentY;
+                //绘制一行：
+                for(var i=0; i<6; i++){
+                    if(i > 0){
+                        self.currentXY.currentY += self.tabConfig.lineSpace;
+                    }
+                    self.basectx.beginPath();
+                    self.basectx.moveTo(self.currentXY.currentXLeft, self.currentXY.currentY);
+                    self.basectx.lineTo(self.currentXY.currentXRight, self.currentXY.currentY);
+                    self.basectx.stroke();
+                }
+                self.currentXY.currentY += self.tabConfig.paraSpace;
+                return beginY;
+            },
+            //坐标跳至下一行
+            jumpToNextLine: function(){
+                var self = this;
+                self.currentXY.currentY += self.tabConfig.lineSpace*5 + self.tabConfig.paraSpace;
+                self.currentXY.currentX = self.currentXY.currentXLeft;
+            },
+            //绘制一个节点
+            drawOneNode: function(node){
+                var self = this;
+                //右移一个节点位置
+                self.currentXY.currentX += self.tabConfig.nodeGap;
+                switch(node.type){
+                    //换行
+                    case self.TYPE_ENUM.LINEBREAK:
+                        self.jumpToNextLine();
+                        self.currentXY.currentY = self.drawCanvas();
+                        break;
+                    //小段分隔符竖线
+                    case self.TYPE_ENUM.BREAK: 
+                        self.tabctx.beginPath();
+                        self.tabctx.moveTo(self.currentXY.currentX, self.currentXY.currentY);
+                        self.tabctx.lineTo(self.currentXY.currentX, self.currentXY.currentY+self.tabConfig.lineSapce*5);
+                        self.tabctx.stroke();
+                        break;
+                    case self.TYPE_ENUM.PLUCK:
+                        var locationY = self.currentXY.currentY;
+                        for(var val of node.flet){
+                            self.tabctx.fillText(val, self.currentXY.currentX, locationY);
+                            locationY += self.tabctx.lineSapce;
+                        }
+                        break;
+                    default: 
+                        //跳过空白位置
+                        self.currentXY.currentX += tabConfig.nodeGap*2 + self.tabConfig.nodeTextSize;
+                        break;
+
+                }
+            },                
+            /**
+            * 读取数据
+            */
+            loadTabData: function(tabStr){
+                var self = this;
+                if(!tabStr){
+                    return;
+                }
+                var tabObj = null;
+                try{
+                    tabObj = JSON.parse(tabStr);
+                }catch(e){
+                    console.error("parse error: " + tabStr);
+                    alert("the file is illegal");
+                    return;
+                }
+
+                //设置头部
+                self.initInfo(tabObj.titles, tabObj.fretNotes, tabObj.authorNotes);
+                self.drawTabHead();
+                //设置曲谱标记字体
+                self.tabctx.textAlign = self.tabConfig.align;
+                self.tabctx.font = self.tabConfig.font;
+                //绘制一行
+                self.currentXY.currentY = self.drawCanvas();
+                //开始绘制节点
+                for(var node of tabObj.nodes){
+                    //绘制一个节点
+                    self.drawOneNode(node);
+                }
+
+            },
+            testTabStr : '{"titles":["We Aren\'t Angles","Terran 05"],"fretNotes":["4/4"],"authorNotes":["制谱：Qc","编配：Qc"],"nodes":[{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"02","flet":[-1,1,2,2,-1,-1]},{"type":"02","flet":[-1,-1,-1,2,2,-1]},{"type":"01"},{"type":"02","flet":[1,1,2,3,3,1]},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[1,1,2,-1,-1,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"00"},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"02","flet":[-1,1,2,2,-1,-1]},{"type":"02","flet":[-1,-1,-1,2,2,-1]},{"type":"01"},{"type":"02","flet":[1,1,2,3,3,1]},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[1,1,2,-1,-1,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"00"}]}'
+        }
+    </script>
     
 
 </html>
