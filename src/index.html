@@ -34,7 +34,9 @@
                 //页面四周空白大小
                 padding: 50,
                 //节点间隔
-                nodeSpace: 15
+                nodeSpace: 15,
+                //文字垂直对齐样式：默认字母基线
+                textBaseline: "alphabetic"
             },
             //标题参数
             titleConfig: {
@@ -51,7 +53,9 @@
                 //副标题所在高度
                 subTitleSize: 30,
                 //标题行距
-                lineSpace: 10
+                lineSpace: 10,
+                //文字垂直对齐样式：垂直居中
+                textBaseline: "alphabetic"
             },
             //左侧备注区域参数(节拍，Capo等内容)
             leftNoteConfig: {
@@ -59,7 +63,9 @@
                 font: "20px Arial",
                 textSize: 20,
                 lineSapce: 5,
-                align: "left"
+                align: "left",
+                //文字垂直对齐样式：默认字母基线
+                textBaseline: "alphabetic"
             },
             //右侧备注区域参数（编配，作者等内容）
             rightNoteConfig: {
@@ -67,7 +73,9 @@
                 font: "20px Arial",
                 lineSpace: 5,
                 textSize: 20,
-                align: "left"
+                align: "left",
+                //文字垂直对齐样式：默认字母基线
+                textBaseline: "alphabetic"
             },
             //正文曲谱线条参数
             tabConfig: {
@@ -76,13 +84,27 @@
                 //段落间隔
                 paraSpace: 30,
                 //节点之间距离
-                nodeGap: 20,
+                nodeGap: 40,
                 //节点标记文本大小
-                nodeTextSize: 5,
-                //字体
-                font: "8px Arial",
+                nodeTextSize: 10,
+                //节点标记文本字体
+                nodeFont: "10px Arial",
                 //中间
-                align: "center"
+                align: "center",
+                //文字垂直对齐样式：垂直居中
+                textBaseline: "middle",
+                //是否显示和弦标注
+                isShowChord: false,
+                //和弦标注大小
+                chordSize: 20,
+                //和弦标注字体
+                chordFont: "20px Arial",
+                //和弦标注字体
+                chordAlign: "center",
+                //和弦垂直对齐样式
+                chordBaseline: "alphabetic",
+                //和弦上下间隔
+                chordSpace: 15,
             },
             
             //当前坐标参数
@@ -108,7 +130,22 @@
                 PLUCK: "02",
                 //扫弦
                 SWEEP: "03",
-
+                //带数字扫弦
+                SWEEP_WITH_SIGN: "0301",
+                //琶音
+                ARPEGGIO: "04",
+                //带数字琶音
+                ARPEGGIO_WITH_SIGN: "04",
+                //
+                
+            },
+            FONT_ENUM:{
+                TITLE: "01",
+                SUBTITLE: "02",
+                LEFT_NOTE: "03",
+                RIGHT_NOTE: "04",
+                TAB: "05",
+                CHORD: "06"
             },
             //特殊按弦标记，用负数表示，非负数用来表示按弦品位 
             SIGN:{
@@ -169,10 +206,10 @@
                 self.tabCanvas = document.getElementById("tabCanvas");
                 self.tabctx = tabCanvas.getContext("2d");
                 //加载测试数据
-                self.loadTabData(self.testTabStr);
+                self.loadTabData(self.testWithChordStr);
             },
             //初始化曲谱
-            initInfo: function(titles, fretNotes, authorNotes ){
+            initInfo: function(titles, fretNotes, authorNotes, isShowChord){
                 var self = this;
                 //标题
                 self.titleConfig.contents = titles;
@@ -180,6 +217,8 @@
                 self.leftNoteConfig.contents = fretNotes;
                 //作者备注
                 self.rightNoteConfig.contents = authorNotes;
+                //是否需要显示和弦标记(默认不显示)
+                self.tabConfig.isShowChord = isShowChord ? isShowChord: false;
                 //初始化坐标
                 //当前绘制高度
                 self.currentXY.currentY= self.globalConfig.padding;
@@ -195,13 +234,13 @@
                 var self = this;
                 //绘制标题文本
                 self.currentXY.currentY += self.titleConfig.titleSize;
-                self.basectx.textAlign = self.titleConfig.titleAlign;
-                self.basectx.font = self.titleConfig.titleFont;
+                self.setTextFont(self.basectx, self.FONT_ENUM.TITLE);
                 self.titleConfig.contents.forEach((content, index)=>{
                     if(index==0){
                         //绘制主标题
                         self.basectx.fillText(content, self.globalConfig.canvasWidth/2, self.currentXY.currentY);
-                        self.basectx.font = self.titleConfig.subTitleFont;
+                        //第一行为主标题，后续为副标题
+                        self.setTextFont(self.basectx, self.FONT_ENUM.SUBTITLE);
                     }else{
                         //绘制副标题
                         self.basectx.fillText(content, self.globalConfig.canvasWidth/2, self.currentXY.currentY);
@@ -212,8 +251,8 @@
                 //暂存左右侧备注区域开始高度
                 var noteHeight = self.currentXY.currentY;
                 //绘制开头左侧备注区域
-                self.basectx.textAlign = self.leftNoteConfig.align;
-                self.basectx.font = self.leftNoteConfig.font;
+                
+                self.setTextFont(self.basectx, self.FONT_ENUM.LEFT_NOTE);
                 for(var content of self.leftNoteConfig.contents){
                     self.basectx.fillText(content, self.currentXY.currentXLeft, self.currentXY.currentY);
                     self.currentXY.currentY += self.leftNoteConfig.lineSpace + self.leftNoteConfig.textSize;
@@ -224,8 +263,7 @@
                 //绘制开头右侧备注区域
                 //重置起始高度，和左侧对齐
                 self.currentXY.currentY = noteHeight;
-                self.basectx.textAlign = self.rightNoteConfig.align;
-                self.basectx.font = self.rightNoteConfig.font;
+                self.setTextFont(self.basectx, self.FONT_ENUM.RIGHT_NOTE);
                 //计算内容最大长度
                 var maxLength = 0;
                 for(var content of self.rightNoteConfig.contents){
@@ -252,7 +290,13 @@
             drawCanvas: function(){
                 var self = this;
                 var beginY = self.currentXY.currentY;
-                //绘制一行：
+                
+                //如果需要显示和弦标注，空出空间
+                if(self.tabConfig.isShowChord){
+                    self.currentXY.currentY += self.tabConfig.chordSize + self.tabConfig.chordSpace;
+                }
+
+                //绘制一行
                 for(var i=0; i<6; i++){
                     if(i > 0){
                         self.currentXY.currentY += self.tabConfig.lineSpace;
@@ -262,20 +306,48 @@
                     self.basectx.lineTo(self.currentXY.currentXRight, self.currentXY.currentY);
                     self.basectx.stroke();
                 }
-                self.currentXY.currentY += self.tabConfig.paraSpace;
+                if(self.tabConfig.isShowChord){
+                    self.currentXY.currentY += self.tabConfig.chordSpace;
+                }else{
+                    self.currentXY.currentY += self.tabConfig.paraSpace;
+                }
                 return beginY;
             },
             //坐标跳至下一行
             jumpToNextLine: function(){
                 var self = this;
-                self.currentXY.currentY += self.tabConfig.lineSpace*5 + self.tabConfig.paraSpace;
                 self.currentXY.currentX = self.currentXY.currentXLeft;
+
+                //如果需要显示和弦标注，空出空间
+                if(self.tabConfig.isShowChord){
+                    self.currentXY.currentY += self.tabConfig.chordSize + self.tabConfig.chordSpace*2 + self.tabConfig.lineSpace*5;
+                }else{
+                    self.currentXY.currentY += self.tabConfig.lineSpace*5 + self.tabConfig.paraSpace;
+                }
             },
             //绘制一个节点
             drawOneNode: function(node){
                 var self = this;
                 //右移一个节点位置
                 self.currentXY.currentX += self.tabConfig.nodeGap;
+
+                var locationY = self.currentXY.currentY;
+
+                //如果需要显示和弦标注
+                if(self.tabConfig.isShowChord){
+                    if(node.chord){
+                        //绘制和弦
+                        self.setTextFont(self.tabctx, self.FONT_ENUM.CHORD);
+                        locationY += self.tabConfig.chordSize;
+                        self.tabctx.fillText(node.chord, self.currentXY.currentX, locationY);
+                        locationY += self.tabConfig.chordSpace;
+                        //回复标记字体
+                        self.setTextFont(self.tabctx, self.FONT_ENUM.TAB);
+                    }else{
+                        locationY += self.tabConfig.chordSize + self.tabConfig.chordSpace;
+                    }
+                }
+
                 switch(node.type){
                     //换行
                     case self.TYPE_ENUM.LINEBREAK:
@@ -285,22 +357,27 @@
                     //小段分隔符竖线
                     case self.TYPE_ENUM.BREAK: 
                         self.tabctx.beginPath();
-                        self.tabctx.moveTo(self.currentXY.currentX, self.currentXY.currentY);
-                        self.tabctx.lineTo(self.currentXY.currentX, self.currentXY.currentY+self.tabConfig.lineSapce*5);
+                        self.tabctx.moveTo(self.currentXY.currentX, locationY);
+                        self.tabctx.lineTo(self.currentXY.currentX, locationY+self.tabConfig.lineSpace*5);
                         self.tabctx.stroke();
                         break;
                     case self.TYPE_ENUM.PLUCK:
-                        var locationY = self.currentXY.currentY;
                         for(var val of node.flet){
-                            self.tabctx.fillText(val, self.currentXY.currentX, locationY);
-                            locationY += self.tabctx.lineSapce;
+                            switch(val){
+                                case self.SIGN.NONE: //空白
+                                    break;
+                                case self.SIGN.SLAP: //拍弦
+                                    break;
+                                default:
+                                    self.tabctx.fillText(val, self.currentXY.currentX, locationY); 
+                            }
+                            locationY += self.tabConfig.lineSpace;
                         }
                         break;
                     default: 
                         //跳过空白位置
                         self.currentXY.currentX += tabConfig.nodeGap*2 + self.tabConfig.nodeTextSize;
                         break;
-
                 }
             },                
             /**
@@ -321,12 +398,14 @@
                 }
 
                 //设置头部
-                self.initInfo(tabObj.titles, tabObj.fretNotes, tabObj.authorNotes);
+                self.initInfo(tabObj.titles, tabObj.fretNotes, tabObj.authorNotes, tabObj.isShowChord);
                 self.drawTabHead();
-                //设置曲谱标记字体
-                self.tabctx.textAlign = self.tabConfig.align;
-                self.tabctx.font = self.tabConfig.font;
-                //绘制一行
+
+                //不需要显示和弦的话，这里直接设置曲谱标记字体，无需每次循环都设置
+                if(!self.tabConfig.isShowChord){
+                    self.setTextFont(self.tabctx, self.FONT_ENUM.TAB);
+                }
+                //绘制一行底谱
                 self.currentXY.currentY = self.drawCanvas();
                 //开始绘制节点
                 for(var node of tabObj.nodes){
@@ -335,7 +414,43 @@
                 }
 
             },
-            testTabStr : '{"titles":["We Aren\'t Angles","Terran 05"],"fretNotes":["4/4"],"authorNotes":["制谱：Qc","编配：Qc"],"nodes":[{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"02","flet":[-1,1,2,2,-1,-1]},{"type":"02","flet":[-1,-1,-1,2,2,-1]},{"type":"01"},{"type":"02","flet":[1,1,2,3,3,1]},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[1,1,2,-1,-1,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"00"},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"02","flet":[-1,1,2,2,-1,-1]},{"type":"02","flet":[-1,-1,-1,2,2,-1]},{"type":"01"},{"type":"02","flet":[1,1,2,3,3,1]},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[1,1,2,-1,-1,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"00"}]}'
+            setTextFont: function(ctx, fontType){
+                var self = this;
+                switch(fontType){
+                    case self.FONT_ENUM.TITLE:
+                        ctx.textAlign = self.titleConfig.titleAlign;
+                        ctx.font = self.titleConfig.titleFont;
+                        ctx.textBaseline = self.titleConfig.textBaseline;
+                        break;
+                    case self.FONT_ENUM.SUBTITLE:
+                        ctx.textAlign = self.titleConfig.titleAlign;
+                        ctx.textBaseline = self.titleConfig.textBaseline;
+                        ctx.font = self.titleConfig.subTitleFont;
+                        break;
+                    case self.FONT_ENUM.LEFT_NOTE:
+                        ctx.textAlign = self.leftNoteConfig.align;
+                        ctx.font = self.leftNoteConfig.font;
+                        ctx.textBaseline = self.leftNoteConfig.textBaseline;
+                        break;
+                    case self.FONT_ENUM.RIGHT_NOTE:
+                        ctx.textAlign = self.rightNoteConfig.align;
+                        ctx.font = self.rightNoteConfig.font;
+                        ctx.textBaseline = self.rightNoteConfig.textBaseline;
+                        break;
+                    case self.FONT_ENUM.TAB:
+                        ctx.textAlign = self.tabConfig.align;
+                        ctx.font = self.tabConfig.nodeFont;
+                        ctx.textBaseline = self.tabConfig.textBaseline;
+                        break;
+                    case self.FONT_ENUM.CHORD:
+                        ctx.textAlign = self.tabConfig.chordAlign;
+                        ctx.font = self.tabConfig.chordFont;
+                        ctx.textBaseline = self.tabConfig.chordBaseline;
+                        break;
+                }
+            },
+            testTabStr : '{"titles":["We Aren\'t Angles","Terran 05"],"fretNotes":["4/4"],"authorNotes":["制谱：Qc","编配：Qc"],"nodes":[{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"02","flet":[-1,1,2,2,-1,-1]},{"type":"02","flet":[-1,-1,-1,2,2,-1]},{"type":"01"},{"type":"02","flet":[1,1,2,3,3,1]},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[1,1,2,-1,-1,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"00"},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"02","flet":[-1,1,2,2,-1,-1]},{"type":"02","flet":[-1,-1,-1,2,2,-1]},{"type":"01"},{"type":"02","flet":[1,1,2,3,3,1]},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[1,1,2,-1,-1,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"00"}]}',
+            testWithChordStr: '{"titles":["We Aren\'t Angles","Terran 05"],"fretNotes":["4/4"],"authorNotes":["制谱：Qc","编配：Qc"],"isShowChord":true,"nodes":[{"type":"02","flet":[-1,1,-1,2,3,-1],"chord":"C"},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"02","flet":[-1,1,2,2,-1,-1]},{"type":"02","flet":[-1,-1,-1,2,2,-1]},{"type":"01"},{"type":"02","flet":[1,1,2,3,3,1],"chord":"F"},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[1,1,2,-1,-1,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"00"},{"type":"02","flet":[-1,1,-1,2,3,-1],"chord":"C"},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"02","flet":[-1,1,2,2,-1,-1]},{"type":"02","flet":[-1,-1,-1,2,2,-1]},{"type":"01"},{"type":"02","flet":[1,1,2,3,3,1],"chord":"F"},{"type":"02","flet":[-1,1,-1,2,3,-1]},{"type":"02","flet":[1,1,2,-1,-1,-1]},{"type":"02","flet":[3,-1,-1,-1,2,3]},{"type":"00"}]}'
         }
     </script>
     
